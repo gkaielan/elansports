@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Elan Badminton Tournament — Live Scoreboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root{
+    --bg-deep:#0A2F4A; --bg-panel:#0F3D5F; --bg-panel-2:#123F63;
+    --line:#F7F5F0; --feather:#C9D94A; --live:#E8503A;
+    --muted:#6E93AC; --muted-dim:#4E7290;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg-deep); color:var(--line); font-family:'Inter',sans-serif; min-height:100%;}
+  body{
+    background-image:
+      radial-gradient(circle at 15% 8%, rgba(201,217,74,0.06), transparent 40%),
+      radial-gradient(circle at 90% 85%, rgba(201,217,74,0.05), transparent 45%);
+    padding:28px 20px 60px;
+  }
+  .court-lines{ position:fixed; inset:0; z-index:0; opacity:0.05; pointer-events:none; }
+  .wrap{max-width:1160px; margin:0 auto; position:relative; z-index:1;}
+
+  header{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:26px; border-bottom:1px solid rgba(247,245,240,0.12); padding-bottom:18px;}
+  h1{font-family:'Oswald',sans-serif; font-weight:600; letter-spacing:0.5px; font-size:clamp(22px,4vw,32px); text-transform:uppercase;}
+  .status{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); letter-spacing:0.3px;}
+  .dot{width:8px; height:8px; border-radius:50%; background:var(--feather); box-shadow:0 0 0 0 rgba(201,217,74,0.6); animation:pulse 2s infinite;}
+  @media (prefers-reduced-motion: reduce){.dot{animation:none;}}
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(201,217,74,0.55);} 70%{box-shadow:0 0 0 8px rgba(201,217,74,0);} 100%{box-shadow:0 0 0 0 rgba(201,217,74,0);}
+  }
+
+  .banner{ background:rgba(232,80,58,0.12); border:1px solid rgba(232,80,58,0.35); color:#F3B7AC; font-size:13px; padding:10px 14px; border-radius:8px; margin-bottom:22px; display:none; }
+  .banner.show{display:block;}
+
+  .section-label{ font-family:'Oswald',sans-serif; font-size:13px; letter-spacing:2px; text-transform:uppercase; color:var(--feather); margin:34px 0 14px; display:flex; align-items:center; gap:10px; }
+  .section-label::after{content:""; flex:1; height:1px; background:rgba(247,245,240,0.12);}
+
+  .court-hero{ background:linear-gradient(180deg,var(--bg-panel),var(--bg-panel-2)); border:1px solid rgba(247,245,240,0.1); border-radius:16px; padding:26px 28px 22px; position:relative; overflow:hidden; }
+  .court-hero::before{ content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--feather); }
+  .court-hero-top{display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; margin-bottom:6px;}
+  .court-name{font-family:'Oswald',sans-serif; font-size:14px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); display:flex; align-items:center; gap:10px;}
+  .live-pill{background:var(--live); color:#fff; font-size:10px; font-weight:700; letter-spacing:1px; padding:2px 8px; border-radius:20px;}
+  .court-category{font-family:'Oswald',sans-serif; font-size:16px; color:var(--feather); text-transform:uppercase; letter-spacing:1px;}
+  .set-note{font-size:11px; color:var(--muted-dim); margin-top:2px;}
+
+  .matchup{margin-top:18px;}
+  .team-row{display:grid; grid-template-columns:1fr 70px; align-items:center; gap:14px; padding:14px 4px;}
+  .team-row + .team-row{border-top:1px solid rgba(247,245,240,0.1);}
+  .team-info{display:flex; flex-direction:column; gap:2px;}
+  .team-name{font-family:'Oswald',sans-serif; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted);}
+  .pair-names{font-size:17px; font-weight:600;}
+  .game-score{font-family:'Oswald',sans-serif; font-size:34px; font-weight:700; text-align:center; font-variant-numeric:tabular-nums;}
+
+  .overall-card{background:var(--bg-panel); border:1px solid rgba(247,245,240,0.08); border-radius:14px; padding:18px 20px; overflow-x:auto;}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  thead th{text-align:left; font-weight:500; font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--muted-dim); padding:8px 6px; border-bottom:1px solid rgba(247,245,240,0.12); white-space:nowrap;}
+  thead th.num{text-align:center;}
+  tbody td{padding:9px 6px; border-bottom:1px solid rgba(247,245,240,0.06); vertical-align:middle;}
+  tbody td.num{text-align:center; font-family:'Oswald',sans-serif; font-variant-numeric:tabular-nums;}
+  .rank-badge{ display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; font-family:'Oswald',sans-serif; font-size:12px; font-weight:600; background:rgba(247,245,240,0.08); color:var(--line); }
+  .rank-badge.gold{background:var(--feather); color:#0A2F4A;}
+  .team-cell{font-weight:600;}
+  .points-cell{font-weight:700; color:var(--feather); font-size:15px;}
+
+  .categories-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px;}
+  .cat-card{background:var(--bg-panel); border:1px solid rgba(247,245,240,0.08); border-radius:14px; padding:16px 16px 6px;}
+  .cat-title{font-family:'Oswald',sans-serif; font-size:14px; letter-spacing:0.5px; text-transform:uppercase; margin-bottom:10px; color:var(--line);}
+  .cat-card table{font-size:12.5px;}
+  .cat-card thead th{padding:5px 4px;}
+  .cat-card tbody td{padding:7px 4px;}
+
+  footer{margin-top:34px; text-align:center; font-size:11px; color:var(--muted-dim);}
+
+  @media (max-width:520px){
+    .game-score{font-size:26px;}
+    .pair-names{font-size:14px;}
+  }
+</style>
+</head>
+<body>
+
+<svg class="court-lines" viewBox="0 0 1160 800" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="60" y="40" width="1040" height="720" fill="none" stroke="#F7F5F0" stroke-width="3"/>
+  <line x1="60" y1="400" x2="1100" y2="400" stroke="#F7F5F0" stroke-width="3"/>
+  <line x1="580" y1="40" x2="580" y2="760" stroke="#F7F5F0" stroke-width="2"/>
+  <rect x="60" y="130" width="1040" height="540" fill="none" stroke="#F7F5F0" stroke-width="2"/>
+</svg>
+
+<div class="wrap">
+  <header>
+    <h1 id="tournamentName">Elan Badminton Tournament</h1>
+    <div class="status"><span class="dot"></span><span id="statusText">Loading live data…</span></div>
+  </header>
+
+  <div class="banner" id="demoBanner">
+    Showing demo data — add your Google Sheet ID in the config section near the top of this file to go live.
+  </div>
+
+  <div class="section-label">On Court Now</div>
+  <div id="courtHero"></div>
+
+  <div class="section-label">Overall Standings</div>
+  <div class="overall-card">
+    <table>
+      <thead><tr>
+        <th class="num">#</th><th>Team</th>
+        <th class="num">Advance</th><th class="num">M-Int</th><th class="num">M-Beg</th>
+        <th class="num">W-Int</th><th class="num">W-Beg</th><th class="num">Extra</th><th class="num">Total</th>
+      </tr></thead>
+      <tbody id="overallBody"></tbody>
+    </table>
+  </div>
+
+  <div class="section-label">Category Standings</div>
+  <div class="categories-grid" id="categoriesGrid"></div>
+
+  <footer>Auto-refreshes every <span id="refreshSecs">20</span>s from Google Sheets · 1 set to 21, win = 2 pts, margin bonus +1/+2</footer>
+</div>
+
+<script>
+/* =========================================================
+   CONFIG — edit these to connect your Google Sheet
+   ========================================================= */
+const SHEET_ID = "PASTE_YOUR_GOOGLE_SHEET_ID_HERE";
+const TOURNAMENT_NAME = "Elan Badminton Tournament";
+const REFRESH_SECONDS = 20;
+/* ========================================================= */
+
+const CATEGORIES = ["Advance", "Male-Intermediate", "Male-Beginner", "Women-Intermediate", "Women-Beginner"];
+const COURT_TAB = "Court 1 Live";
+const OVERALL_TAB = "Overall Standings";
+const DEMO_MODE = SHEET_ID.indexOf("PASTE_YOUR") === 0;
+
+document.getElementById("tournamentName").textContent = TOURNAMENT_NAME;
+document.getElementById("refreshSecs").textContent = REFRESH_SECONDS;
+if (DEMO_MODE) document.getElementById("demoBanner").classList.add("show");
+
+function csvUrl(tabName){
+  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
+}
+function fetchTab(tabName){
+  return new Promise((resolve) => {
+    if (DEMO_MODE){ resolve(null); return; }
+    fetch(csvUrl(tabName))
+      .then(r => { if(!r.ok) throw new Error("bad response"); return r.text(); })
+      .then(text => resolve(Papa.parse(text.trim(), {skipEmptyLines:false}).data))
+      .catch(() => resolve(null));
+  });
+}
+function findRow(rows, matchFn, startAt){
+  for (let i = startAt || 0; i < rows.length; i++){ if (matchFn(rows[i])) return i; }
+  return -1;
+}
+
+function parseCategoryRows(rows){
+  if (!rows) return null;
+  const headerIdx = findRow(rows, r => (r[0]||"").trim() === "Team");
+  if (headerIdx === -1) return null;
+  const teams = [];
+  for (let i = headerIdx + 1; i < rows.length; i++){
+    const r = rows[i];
+    if (!r[0] || r[0].trim() === "") break;
+    teams.push({ team:r[0], matches:Number(r[1])||0, wins:Number(r[2])||0, losses:Number(r[3])||0, points:Number(r[4])||0, rank:Number(r[5])||0 });
+  }
+  teams.sort((a,b) => a.rank - b.rank);
+  return teams;
+}
+
+// Overall Standings columns: Team, 5 categories, Extra, Total, Rank
+function parseOverallRows(rows){
+  if (!rows) return null;
+  const headerIdx = findRow(rows, r => (r[0]||"").trim() === "Team");
+  if (headerIdx === -1) return null;
+  const teams = [];
+  for (let i = headerIdx + 1; i < rows.length; i++){
+    const r = rows[i];
+    if (!r[0] || r[0].trim() === "") break;
+    const catsPlusExtra = CATEGORIES.map((c, idx) => Number(r[1+idx]) || 0).concat([Number(r[1+CATEGORIES.length])||0]);
+    teams.push({
+      team:r[0],
+      cats: catsPlusExtra, // 5 categories + Extra = 6 values
+      total: Number(r[2+CATEGORIES.length]) || 0,
+      rank: Number(r[3+CATEGORIES.length]) || 0
+    });
+  }
+  teams.sort((a,b) => a.rank - b.rank);
+  return teams;
+}
+
+// Court Live columns: Team, Player 1, Player 2, Score (single set)
+function parseCourtRows(rows){
+  if (!rows) return null;
+  const category = (rows[3] && rows[3][1]) ? rows[3][1].trim() : "";
+  const headerIdx = findRow(rows, r => (r[0]||"").trim() === "Team" && (r[3]||"").trim().indexOf("Score") === 0);
+  if (headerIdx === -1) return null;
+  const teams = [];
+  for (let i = headerIdx + 1; i < headerIdx + 3; i++){
+    const r = rows[i];
+    if (!r) continue;
+    teams.push({ team:r[0]||"", p1:r[1]||"", p2:r[2]||"", score:r[3]||"0" });
+  }
+  return { category, teams };
+}
+
+const DEMO_CATEGORY = [
+  {team:"Elan Smashers", matches:2, wins:2, losses:0, points:6, rank:1},
+  {team:"Elan Racketstars", matches:2, wins:1, losses:1, points:3, rank:2},
+  {team:"Elan Titans", matches:2, wins:1, losses:1, points:2, rank:3},
+  {team:"Elan Gladiators", matches:2, wins:0, losses:2, points:0, rank:4},
+];
+const DEMO_OVERALL = [
+  {team:"Elan Smashers", cats:[6,3,2,4,2,2], total:19, rank:1},
+  {team:"Elan Racketstars", cats:[3,4,2,2,2,0], total:13, rank:2},
+  {team:"Elan Titans", cats:[2,2,4,0,4,3], total:15, rank:3},
+  {team:"Elan Gladiators", cats:[0,0,2,2,0,4], total:8, rank:4},
+];
+const DEMO_COURT = {
+  category:"Advance",
+  teams:[
+    {team:"Elan Smashers", p1:"Girish", p2:"Krishna", score:"21"},
+    {team:"Elan Racketstars", p1:"Vasuki", p2:"Nilesh", score:"12"},
+  ]
+};
+
+function renderCourt(court){
+  const d = court || DEMO_COURT;
+  const el = document.getElementById("courtHero");
+  el.innerHTML = `
+    <div class="court-hero">
+      <div class="court-hero-top">
+        <div class="court-name">${COURT_TAB} <span class="live-pill">LIVE</span></div>
+        <div class="court-category">${d.category || ""}</div>
+      </div>
+      <div class="set-note">One set to 21</div>
+      <div class="matchup">
+        ${d.teams.map(t => `
+          <div class="team-row">
+            <div class="team-info">
+              <span class="team-name">${t.team}</span>
+              <span class="pair-names">${t.p1} / ${t.p2}</span>
+            </div>
+            <div class="game-score">${t.score}</div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderOverall(overall){
+  const list = overall || DEMO_OVERALL;
+  const body = document.getElementById("overallBody");
+  body.innerHTML = list.map((t,i) => `
+    <tr>
+      <td class="num"><span class="rank-badge ${i===0?'gold':''}">${t.rank}</span></td>
+      <td class="team-cell">${t.team}</td>
+      ${t.cats.map(c => `<td class="num">${c}</td>`).join("")}
+      <td class="num points-cell">${t.total}</td>
+    </tr>
+  `).join("");
+}
+
+function renderCategories(categoryData){
+  const grid = document.getElementById("categoriesGrid");
+  grid.innerHTML = "";
+  CATEGORIES.forEach(cat => {
+    const teams = categoryData[cat] || DEMO_CATEGORY;
+    const card = document.createElement("div");
+    card.className = "cat-card";
+    card.innerHTML = `
+      <div class="cat-title">${cat}</div>
+      <table>
+        <thead><tr><th class="num">#</th><th>Team</th><th class="num">W</th><th class="num">L</th><th class="num">Pts</th></tr></thead>
+        <tbody>
+          ${teams.map((t,i) => `
+            <tr>
+              <td class="num"><span class="rank-badge ${i===0?'gold':''}">${t.rank}</span></td>
+              <td>${t.team.replace(/^Elan /,"")}</td>
+              <td class="num">${t.wins}</td>
+              <td class="num">${t.losses}</td>
+              <td class="num points-cell">${t.points}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+async function loadAll(){
+  document.getElementById("statusText").textContent = "Refreshing…";
+  try{
+    const courtRows = await fetchTab(COURT_TAB);
+    const overallRows = await fetchTab(OVERALL_TAB);
+    const catRowsList = await Promise.all(CATEGORIES.map(fetchTab));
+
+    const court = parseCourtRows(courtRows);
+    const overall = parseOverallRows(overallRows);
+    const categoryData = {};
+    CATEGORIES.forEach((cat, i) => { categoryData[cat] = parseCategoryRows(catRowsList[i]); });
+
+    renderCourt(court);
+    renderOverall(overall);
+    renderCategories(categoryData);
+
+    const now = new Date();
+    document.getElementById("statusText").textContent =
+      (DEMO_MODE ? "Demo data" : "Live") + " · updated " + now.toLocaleTimeString();
+  }catch(e){
+    document.getElementById("statusText").textContent = "Couldn't refresh — retrying next cycle";
+  }
+}
+
+loadAll();
+setInterval(loadAll, REFRESH_SECONDS * 1000);
+</script>
+</body>
+</html>
