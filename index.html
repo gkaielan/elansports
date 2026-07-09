@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Elan Badminton Tournament — Live Scoreboard</title>
+<title>Elan Badminton Tournament 2026 — Live Scoreboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
@@ -75,6 +75,19 @@
 
   footer{margin-top:34px; text-align:center; font-size:11px; color:var(--muted-dim);}
 
+  @media (max-width:640px){
+    .overall-card table thead{display:none;}
+    .overall-card table, .overall-card tbody, .overall-card tr, .overall-card td{display:block; width:100%;}
+    .overall-card tbody tr{
+      border:1px solid rgba(247,245,240,0.1); border-radius:10px; padding:10px 12px; margin-bottom:10px; background:rgba(247,245,240,0.03);
+    }
+    .overall-card td{border-bottom:none; padding:4px 0; display:flex; justify-content:space-between; align-items:center;}
+    .overall-card td.num{text-align:right;}
+    .overall-card td:nth-of-type(1){display:none;}
+    .overall-card td:nth-of-type(2){font-size:15px; font-weight:700; padding-bottom:8px; border-bottom:1px solid rgba(247,245,240,0.1); margin-bottom:6px; justify-content:flex-start;}
+    .overall-card td:nth-of-type(2)::before{content:"";}
+    .overall-card td[data-label]::before{content:attr(data-label); color:var(--muted-dim); font-size:11px; text-transform:uppercase; letter-spacing:0.5px;}
+  }
   @media (max-width:520px){
     .game-score{font-size:26px;}
     .pair-names{font-size:14px;}
@@ -92,7 +105,7 @@
 
 <div class="wrap">
   <header>
-    <h1 id="tournamentName">Elan Badminton Tournament</h1>
+    <h1 id="tournamentName">Elan Badminton Tournament 2026</h1>
     <div class="status"><span class="dot"></span><span id="statusText">Loading live data…</span></div>
   </header>
 
@@ -125,8 +138,8 @@
 /* =========================================================
    CONFIG — edit these to connect your Google Sheet
    ========================================================= */
-const SHEET_ID = "PASTE_YOUR_GOOGLE_SHEET_ID_HERE";
-const TOURNAMENT_NAME = "Elan Badminton Tournament";
+const SHEET_ID = "1LD0fKEYRrHf806AtBWRdJ1RG4ZR9qYyCd6mhHmawmUg";
+const TOURNAMENT_NAME = "Elan Badminton Tournament 2026";
 const REFRESH_SECONDS = 20;
 /* ========================================================= */
 
@@ -254,12 +267,13 @@ function renderCourt(court){
 function renderOverall(overall){
   const list = overall || DEMO_OVERALL;
   const body = document.getElementById("overallBody");
+  const labels = ["Advance","M-Int","M-Beg","W-Int","W-Beg","Extra"];
   body.innerHTML = list.map((t,i) => `
     <tr>
       <td class="num"><span class="rank-badge ${i===0?'gold':''}">${t.rank}</span></td>
       <td class="team-cell">${t.team}</td>
-      ${t.cats.map(c => `<td class="num">${c}</td>`).join("")}
-      <td class="num points-cell">${t.total}</td>
+      ${t.cats.map((c,ci) => `<td class="num" data-label="${labels[ci]}">${c}</td>`).join("")}
+      <td class="num points-cell" data-label="Total">${t.total}</td>
     </tr>
   `).join("");
 }
