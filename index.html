@@ -6,7 +6,6 @@
 <title>Elan Badminton Tournament 2026 — Live Scoreboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   :root{
     --bg-deep:#0A2F4A; --bg-panel:#0F3D5F; --bg-panel-2:#123F63;
@@ -84,6 +83,7 @@
     .overall-card td{border-bottom:none; padding:4px 0; display:flex; justify-content:space-between; align-items:center;}
     .overall-card td.num{text-align:right;}
     .overall-card td:nth-of-type(1){display:none;}
+    .overall-card tr.empty-row td:nth-of-type(1){display:block !important;}
     .overall-card td:nth-of-type(2){font-size:15px; font-weight:700; padding-bottom:8px; border-bottom:1px solid rgba(247,245,240,0.1); margin-bottom:6px; justify-content:flex-start;}
     .overall-card td:nth-of-type(2)::before{content:"";}
     .overall-card td[data-label]::before{content:attr(data-label); color:var(--muted-dim); font-size:11px; text-transform:uppercase; letter-spacing:0.5px;}
@@ -96,12 +96,7 @@
 </head>
 <body>
 
-<svg class="court-lines" viewBox="0 0 1160 800" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-  <rect x="60" y="40" width="1040" height="720" fill="none" stroke="#F7F5F0" stroke-width="3"/>
-  <line x1="60" y1="400" x2="1100" y2="400" stroke="#F7F5F0" stroke-width="3"/>
-  <line x1="580" y1="40" x2="580" y2="760" stroke="#F7F5F0" stroke-width="2"/>
-  <rect x="60" y="130" width="1040" height="540" fill="none" stroke="#F7F5F0" stroke-width="2"/>
-</svg>
+
 
 <div class="wrap">
   <header>
@@ -152,18 +147,50 @@ document.getElementById("tournamentName").textContent = TOURNAMENT_NAME;
 document.getElementById("refreshSecs").textContent = REFRESH_SECONDS;
 if (DEMO_MODE) document.getElementById("demoBanner").classList.add("show");
 
-function csvUrl(tabName){
-  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
-}
-function fetchTab(tabName){
+
+let jsonpCounter = 0;
+function jsonpFetchTab(tabName){
   return new Promise((resolve) => {
     if (DEMO_MODE){ resolve(null); return; }
-    fetch(csvUrl(tabName))
-      .then(r => { if(!r.ok) throw new Error("bad response"); return r.text(); })
-      .then(text => resolve(Papa.parse(text.trim(), {skipEmptyLines:false}).data))
-      .catch(() => resolve(null));
+    const cbName = "__gsCallback" + (jsonpCounter++);
+    const scriptId = cbName + "_script";
+    let settled = false;
+
+    const cleanup = () => {
+      const s = document.getElementById(scriptId);
+      if (s) s.remove();
+      delete window[cbName];
+    };
+    const timeoutId = setTimeout(() => {
+      if (!settled){ settled = true; cleanup(); resolve(null); }
+    }, 9000);
+
+    window[cbName] = function(resp){
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      try{
+        const rows = (resp.table && resp.table.rows) ? resp.table.rows : [];
+        const grid = rows.map(row =>
+          (row.c || []).map(cell => (cell && cell.v !== null && cell.v !== undefined) ? String(cell.v) : "")
+        );
+        cleanup();
+        resolve(grid);
+      }catch(e){
+        cleanup();
+        resolve(null);
+      }
+    };
+
+    const src = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json;responseHandler:${cbName}&sheet=${encodeURIComponent(tabName)}`;
+    const script = document.createElement("script");
+    script.id = scriptId;
+    script.src = src;
+    script.onerror = () => { if(!settled){ settled = true; clearTimeout(timeoutId); cleanup(); resolve(null); } };
+    document.body.appendChild(script);
   });
 }
+function fetchTab(tabName){ return jsonpFetchTab(tabName); }
 function findRow(rows, matchFn, startAt){
   for (let i = startAt || 0; i < rows.length; i++){ if (matchFn(rows[i])) return i; }
   return -1;
@@ -240,17 +267,21 @@ const DEMO_COURT = {
 };
 
 function renderCourt(court){
-  const d = court || DEMO_COURT;
   const el = document.getElementById("courtHero");
+  if (DEMO_MODE && !court) court = DEMO_COURT;
+  if (!court){
+    el.innerHTML = `<div class="court-hero"><div class="court-name">${COURT_TAB}</div><div style="padding:20px 4px; color:var(--muted);">No match data yet — check the Court 1 Live tab, or the sheet may still be loading.</div></div>`;
+    return;
+  }
   el.innerHTML = `
     <div class="court-hero">
       <div class="court-hero-top">
         <div class="court-name">${COURT_TAB} <span class="live-pill">LIVE</span></div>
-        <div class="court-category">${d.category || ""}</div>
+        <div class="court-category">${court.category || ""}</div>
       </div>
       <div class="set-note">One set to 21</div>
       <div class="matchup">
-        ${d.teams.map(t => `
+        ${court.teams.map(t => `
           <div class="team-row">
             <div class="team-info">
               <span class="team-name">${t.team}</span>
@@ -265,10 +296,14 @@ function renderCourt(court){
 }
 
 function renderOverall(overall){
-  const list = overall || DEMO_OVERALL;
+  if (DEMO_MODE && !overall) overall = DEMO_OVERALL;
   const body = document.getElementById("overallBody");
+  if (!overall){
+    body.innerHTML = `<tr class="empty-row"><td colspan="9" style="text-align:center; color:var(--muted); padding:16px; display:block !important;">No standings data yet — add a match to the Match Log.</td></tr>`;
+    return;
+  }
   const labels = ["Advance","M-Int","M-Beg","W-Int","W-Beg","Extra"];
-  body.innerHTML = list.map((t,i) => `
+  body.innerHTML = overall.map((t,i) => `
     <tr>
       <td class="num"><span class="rank-badge ${i===0?'gold':''}">${t.rank}</span></td>
       <td class="team-cell">${t.team}</td>
@@ -282,9 +317,15 @@ function renderCategories(categoryData){
   const grid = document.getElementById("categoriesGrid");
   grid.innerHTML = "";
   CATEGORIES.forEach(cat => {
-    const teams = categoryData[cat] || DEMO_CATEGORY;
+    let teams = categoryData[cat];
+    if (DEMO_MODE && !teams) teams = DEMO_CATEGORY;
     const card = document.createElement("div");
     card.className = "cat-card";
+    if (!teams){
+      card.innerHTML = `<div class="cat-title">${cat}</div><div style="color:var(--muted); font-size:12px; padding:8px 0;">No data yet</div>`;
+      grid.appendChild(card);
+      return;
+    }
     card.innerHTML = `
       <div class="cat-title">${cat}</div>
       <table>
