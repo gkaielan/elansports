@@ -106,6 +106,10 @@
   .result-side{font-size:13px; display:flex; flex-direction:column; gap:1px;}
   .result-side .r-team{color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:0.5px;}
   .result-side.winner .r-pair{color:var(--feather); font-weight:700;}
+  .winner-badge{
+    background:var(--feather); color:#0A2F4A; font-size:8px; font-weight:700; letter-spacing:0.5px;
+    padding:1px 5px; border-radius:4px; margin-left:5px; vertical-align:middle;
+  }
   .result-score{font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; text-align:center; white-space:nowrap;}
   .no-results{color:var(--muted); font-size:13px; padding:8px 4px;}
   @media (max-width:640px){
@@ -435,12 +439,12 @@ function renderResults(matches){
     <div class="result-row">
       <div class="result-cat">${m.category}</div>
       <div class="result-side ${m.winner === m.teamA ? 'winner' : ''}">
-        <span class="r-team">${m.teamA}</span>
+        <span class="r-team">${m.teamA}${m.winner === m.teamA ? ' <span class="winner-badge">WINNER</span>' : ''}</span>
         <span class="r-pair">${m.pairA}</span>
       </div>
       <div class="result-score">${m.scoreA} – ${m.scoreB}</div>
       <div class="result-side ${m.winner === m.teamB ? 'winner' : ''}">
-        <span class="r-team">${m.teamB}</span>
+        <span class="r-team">${m.teamB}${m.winner === m.teamB ? ' <span class="winner-badge">WINNER</span>' : ''}</span>
         <span class="r-pair">${m.pairB}</span>
       </div>
     </div>
