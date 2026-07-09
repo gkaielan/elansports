@@ -184,7 +184,7 @@ function jsonpFetchTab(tabName){
       }
     };
 
-    const src = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json;responseHandler:${cbName}&sheet=${encodeURIComponent(tabName)}`;
+    const src = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json;responseHandler:${cbName}&sheet=${encodeURIComponent(tabName)}&headers=0`;
     const script = document.createElement("script");
     script.id = scriptId;
     script.src = src;
