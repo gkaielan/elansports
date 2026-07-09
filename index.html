@@ -162,7 +162,7 @@ function jsonpFetchTab(tabName){
       delete window[cbName];
     };
     const timeoutId = setTimeout(() => {
-      if (!settled){ settled = true; cleanup(); resolve(null); }
+      if (!settled){ settled = true; console.warn("JSONP timed out for tab:", tabName); cleanup(); resolve(null); }
     }, 9000);
 
     window[cbName] = function(resp){
@@ -174,9 +174,11 @@ function jsonpFetchTab(tabName){
         const grid = rows.map(row =>
           (row.c || []).map(cell => (cell && cell.v !== null && cell.v !== undefined) ? String(cell.v) : "")
         );
+        console.log("JSONP success for tab:", tabName, "rows:", grid.length);
         cleanup();
         resolve(grid);
       }catch(e){
+        console.error("JSONP parse error for tab:", tabName, e);
         cleanup();
         resolve(null);
       }
@@ -234,9 +236,11 @@ function parseOverallRows(rows){
 // Court Live columns: Team, Player 1, Player 2, Score (single set)
 function parseCourtRows(rows){
   if (!rows) return null;
-  const category = (rows[3] && rows[3][1]) ? rows[3][1].trim() : "";
+  console.log("RAW Court 1 Live rows:", rows);
+  const catRowIdx = findRow(rows, r => (r[0]||"").trim() === "Category:");
+  const category = (catRowIdx !== -1 && rows[catRowIdx][1]) ? rows[catRowIdx][1].trim() : "";
   const headerIdx = findRow(rows, r => (r[0]||"").trim() === "Team" && (r[3]||"").trim().indexOf("Score") === 0);
-  if (headerIdx === -1) return null;
+  if (headerIdx === -1){ console.warn("Court header row not found"); return null; }
   const teams = [];
   for (let i = headerIdx + 1; i < headerIdx + 3; i++){
     const r = rows[i];
