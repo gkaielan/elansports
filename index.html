@@ -239,7 +239,7 @@ function parseCourtRows(rows){
   console.log("RAW Court 1 Live rows:", rows);
   const catRowIdx = findRow(rows, r => (r[0]||"").trim() === "Category:");
   const category = (catRowIdx !== -1 && rows[catRowIdx][1]) ? rows[catRowIdx][1].trim() : "";
-  const headerIdx = findRow(rows, r => (r[0]||"").trim() === "Team" && (r[3]||"").trim().indexOf("Score") === 0);
+  const headerIdx = findRow(rows, r => (r[0]||"").trim() === "Team" && (r[1]||"").trim() === "Player 1" && (r[2]||"").trim() === "Player 2");
   if (headerIdx === -1){ console.warn("Court header row not found"); return null; }
   const teams = [];
   for (let i = headerIdx + 1; i < headerIdx + 3; i++){
