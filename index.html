@@ -91,6 +91,26 @@
   @media (max-width:520px){
     .game-score{font-size:26px;}
     .pair-names{font-size:14px;}
+  }  .results-toggle-btn{
+    background:rgba(201,217,74,0.12); border:1px solid rgba(201,217,74,0.4); color:var(--feather);
+    font-family:'Oswald',sans-serif; font-size:12px; letter-spacing:1px; text-transform:uppercase;
+    padding:9px 18px; border-radius:8px; cursor:pointer; transition:background 0.15s;
+  }
+  .results-toggle-btn:hover{background:rgba(201,217,74,0.22);}
+  .result-row{
+    display:grid; grid-template-columns:110px 1fr auto 1fr; align-items:center; gap:12px;
+    padding:11px 4px; border-bottom:1px solid rgba(247,245,240,0.07);
+  }
+  .result-row:last-child{border-bottom:none;}
+  .result-cat{font-size:10px; color:var(--muted-dim); text-transform:uppercase; letter-spacing:0.5px;}
+  .result-side{font-size:13px; display:flex; flex-direction:column; gap:1px;}
+  .result-side .r-team{color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:0.5px;}
+  .result-side.winner .r-pair{color:var(--feather); font-weight:700;}
+  .result-score{font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; text-align:center; white-space:nowrap;}
+  .no-results{color:var(--muted); font-size:13px; padding:8px 4px;}
+  @media (max-width:640px){
+    .result-row{grid-template-columns:1fr; gap:2px; text-align:left;}
+    .result-score{text-align:left;}
   }
 </style>
 </head>
@@ -123,6 +143,12 @@
     </table>
   </div>
 
+  <div class="section-label">Recent Results</div>
+  <div class="overall-card" id="resultsCard">
+    <button id="resultsToggleBtn" class="results-toggle-btn">Show Results</button>
+    <div id="resultsList" style="display:none;"></div>
+  </div>
+
   <div class="section-label">Category Standings</div>
   <div class="categories-grid" id="categoriesGrid"></div>
 
@@ -143,6 +169,8 @@ const EXTRA_TAB = "Extra Matches";
 const EXTRA_LABEL = "Extra / Any Combination";
 const COURT_TAB = "Court 1 Live";
 const OVERALL_TAB = "Overall Standings";
+const MATCH_LOG_TAB = "Match Log";
+let resultsLoaded = false;
 const DEMO_MODE = SHEET_ID.indexOf("PASTE_YOUR") === 0;
 
 document.getElementById("tournamentName").textContent = TOURNAMENT_NAME;
@@ -378,6 +406,65 @@ async function loadAll(){
     document.getElementById("statusText").textContent = "Couldn't refresh — retrying next cycle";
   }
 }
+
+// Match Log columns (after headers=0, header search by content):
+// Match No., Category, Team A, Pair A, Team B, Pair B, Score A, Score B, Winner, Margin, Team A Pts, Team B Pts
+function parseMatchLogRows(rows){
+  if (!rows) return null;
+  const headerIdx = findRow(rows, r => (r[1]||"").trim() === "Category" && (r[2]||"").trim() === "Team A");
+  if (headerIdx === -1) return null;
+  const matches = [];
+  for (let i = headerIdx + 1; i < rows.length; i++){
+    const r = rows[i];
+    if (!r || r[6] === "" || r[7] === "" || r[6] === undefined || r[7] === undefined) continue;
+    matches.push({
+      category: r[1]||"", teamA: r[2]||"", pairA: r[3]||"", teamB: r[4]||"", pairB: r[5]||"",
+      scoreA: r[6], scoreB: r[7], winner: r[8]||""
+    });
+  }
+  return matches.reverse();
+}
+
+function renderResults(matches){
+  const el = document.getElementById("resultsList");
+  if (!matches || matches.length === 0){
+    el.innerHTML = `<div class="no-results">No results logged yet.</div>`;
+    return;
+  }
+  el.innerHTML = matches.map(m => `
+    <div class="result-row">
+      <div class="result-cat">${m.category}</div>
+      <div class="result-side ${m.winner === m.teamA ? 'winner' : ''}">
+        <span class="r-team">${m.teamA}</span>
+        <span class="r-pair">${m.pairA}</span>
+      </div>
+      <div class="result-score">${m.scoreA} – ${m.scoreB}</div>
+      <div class="result-side ${m.winner === m.teamB ? 'winner' : ''}">
+        <span class="r-team">${m.teamB}</span>
+        <span class="r-pair">${m.pairB}</span>
+      </div>
+    </div>
+  `).join("");
+}
+
+document.getElementById("resultsToggleBtn").addEventListener("click", async function(){
+  const listEl = document.getElementById("resultsList");
+  const isHidden = listEl.style.display === "none";
+  if (isHidden){
+    listEl.style.display = "block";
+    this.textContent = "Hide Results";
+    if (!resultsLoaded){
+      listEl.innerHTML = `<div class="no-results">Loading…</div>`;
+      const rows = DEMO_MODE ? null : await fetchTab(MATCH_LOG_TAB);
+      const matches = parseMatchLogRows(rows);
+      renderResults(matches);
+      resultsLoaded = true;
+    }
+  } else {
+    listEl.style.display = "none";
+    this.textContent = "Show Results";
+  }
+});
 
 loadAll();
 setInterval(loadAll, REFRESH_SECONDS * 1000);
