@@ -163,7 +163,7 @@
 /* =========================================================
    CONFIG — edit these to connect your Google Sheet
    ========================================================= */
-const SHEET_ID = "1TgONXEpwerbCl1XWU1EbLi6hx3lBPRXtjIc_FLuZCBg";
+const SHEET_ID = "1i0bm3pOQkvFaUGX-BQs3jk4DMYCWq89Lu4RjYWDKoUI";
 const TOURNAMENT_NAME = "Elan Badminton Tournament 2026";
 const REFRESH_SECONDS = 20;
 /* ========================================================= */
@@ -388,10 +388,12 @@ function renderCategories(categoryData, allCatLabels){
 async function loadAll(){
   document.getElementById("statusText").textContent = "Refreshing…";
   try{
-    const courtRows = await fetchTab(COURT_TAB);
-    const overallRows = await fetchTab(OVERALL_TAB);
-    const catRowsList = await Promise.all(CATEGORIES.map(fetchTab));
-    const extraRows = await fetchTab(EXTRA_TAB);
+    const [courtRows, overallRows, catRowsList, extraRows] = await Promise.all([
+      fetchTab(COURT_TAB),
+      fetchTab(OVERALL_TAB),
+      Promise.all(CATEGORIES.map(fetchTab)),
+      fetchTab(EXTRA_TAB)
+    ]);
 
     const court = parseCourtRows(courtRows);
     const overall = parseOverallRows(overallRows);
